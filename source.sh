@@ -1,108 +1,140 @@
-# variables:
-#   DEBFULLNAME: "Garden Linux builder"
-#   DEBEMAIL: "contact@gardenlinux.io"
-#   SOURCE_NAME: $CI_PROJECT_NAME
-#   SOURCE_DIST: bookworm
-#   SOURCES_LIST: |
-#     deb http://deb.debian.org/debian bookworm main
-#     deb http://deb.debian.org/debian-security bookworm-security main
-#     deb-src http://deb.debian.org/debian bullseye main
-#     deb-src http://deb.debian.org/debian-security bullseye-security main
-#     deb-src http://deb.debian.org/debian bookworm main
-#     deb-src http://deb.debian.org/debian-security bookworm-security main
-#     deb-src http://deb.debian.org/debian sid main
-#     deb-src http://deb.debian.org/debian experimental main
+#!/bin/bash
 
-# before_script:
-function do_before_script(){
-  if [[ $CI_DISPOSABLE_ENVIRONMENT ]]; then
-    echo -n "$SOURCES_LIST" > /etc/apt/sources.list
-    apt-get update -qy
-    apt-get install -qy --no-install-recommends devscripts pristine-lfs rsync
+set -Euxo pipefail
+
+trap 'rm -rf _output && exit' ERR
+
+SOURCE_DIST=${SOURCE_DIST:-gardenlinux/package-build:today}
+DEBFULLNAME=${DEBFULLNAME:-"Garden Linux builder"}
+DEBEMAIL=${DEBEMAIL:-"contact@gardenlinux.io"}
+
+export DEBFULLNAME
+export DEBEMAIL
+
+SOURCES_LIST=$(cat <<'EOF'
+deb http://deb.debian.org/debian bookworm main
+deb http://deb.debian.org/debian-security bookworm-security main
+deb-src http://deb.debian.org/debian bullseye main
+deb-src http://deb.debian.org/debian-security bullseye-security main
+deb-src http://deb.debian.org/debian bookworm main
+deb-src http://deb.debian.org/debian-security bookworm-security main
+deb-src http://deb.debian.org/debian sid main
+deb-src http://deb.debian.org/debian experimental main
+EOF
+)
+source ./common.sh
+
+function check_variable(){
+  if  [ -z "${!1}" ]; then
+    error "$1 not specified. Refusing to continue"
+    exit 1
+  fi
+}
+export -f check_variable
+
+
+
+check_variable SOURCE_NAME
+
+
+function get_source_git() {
+  check_variable SOURCE_REPO
+  check_variable SOURCE_REPO_TAG
+  git -c advice.detachedHead=false clone --branch "$SOURCE_REPO_TAG" --jobs $(nproc) --depth 1 --shallow-submodules --recurse-submodules "$SOURCE_REPO" _output/src
+
+  # Replace with own debian folder if it is present
+  if [ -d "debian" ]; then
+    rm -rf _output/src/debian
+    cp -a debian _output/src/debian
+  else 
+    if [ ! -d "_output/src/debian" ]; then
+      error "No Debian folder in upstream sources found."
+    else 
+      # Create own changelog later.
+      rm -rf _output/src/debian/changelog
+    fi
   fi
 }
 
+function get_source() {
+  case "$1" in
+    git)
+      echo "Get Source from git repository"
+      get_source_git
+      ;;
+    lfs)
+      echo "Get Source from git-lfs"
+      ;;
+    debian)
+      echo "Get Source from debian apt src repo"
+      ;;
+    *)
+      echo "'$PACKAGE_SOURCE_OGIGIN' is unknown"
+      ;;
+  esac
+}
 
-# script:
-function do_script() {
-  if [[ ${CI_COMMIT_TAG:-} ]]; then
-    TAG_VERSION=${CI_COMMIT_TAG#*/}
-    TAG_VERSION=${TAG_VERSION/\%/:}
-    TAG_VERSION=${TAG_VERSION/\_/\~}
-    echo "Target Version: $TAG_VERSION"
-    APT_NAME=${SOURCE_NAME}=${TAG_VERSION%garden*}
-  else
-    APT_NAME=${SOURCE_NAME}/${SOURCE_DIST}
-  fi
-  ROOT=$(pwd)
-  mkdir _output
-  if [[ ${ORIG_TAR:-} ]]; then
-    echo '### pulling existing orig via pristine-lfs'
-    git fetch --quiet --depth 1 origin pristine-lfs
-    echo "### Get latest Upstream Version in pristine-lfs"
-    LATEST_TARBALL="$(pristine-lfs list | grep 'orig.tar.' | sort -r -V | head -n1)"
-    SOURCE_NAME=${LATEST_TARBALL%_*}
-    UPSTREAM_VERSION="${LATEST_TARBALL%.orig*}"
-    UPSTREAM_VERSION="${UPSTREAM_VERSION#*_}"
-    if [[ ${CI_COMMIT_TAG:-} ]]; then
-      if [[ "${UPSTREAM_VERSION}" != "${TAG_VERSION%-*}" ]]; then
-        echo "ERROR: sources for version ${TAG_VERSION%-*} not found in pristine-lfs."
-        exit 1
-      fi
-    fi
-    pristine-lfs checkout "_output/${LATEST_TARBALL}" || true
-    if [[ -e "_output/${LATEST_TARBALL}" ]]; then
-      cd _output
-      echo "### unpack source"
-      tar -xf "${LATEST_TARBALL}"
-    else
-      echo "### Specified ORIG_TAR='${ORIG_TAR}' was not found in pristine-lfs branch"
-      exit 1
-    fi
-  else 
-    apt source --only-source -d $APT_NAME
-    cd _output
-    dpkg-source -x ../$SOURCE_NAME_*.dsc
-  fi
-  echo "### Get path to source folder"
-  SOURCE_DIR_UNPACKED=$(find "$ROOT/_output" -maxdepth 1 -type d -name "$SOURCE_NAME-*")
-  SOURCE_DIR_UNPACKED=$(readlink -e "$SOURCE_DIR_UNPACKED")
-  if [[ ${ORIG_TAR:-} ]]; then
-    if [[ -d "$ROOT/debian" ]]; then
-      echo "### Replace debian folder with own content"
-      rsync -a "$ROOT/debian" "${SOURCE_DIR_UNPACKED}"
-    fi
-  fi
-  cd "$SOURCE_DIR_UNPACKED"
-  if [[ ${CI_COMMIT_TAG:-} ]]; then
-    dch --newversion $TAG_VERSION --distribution gardenlinux --force-distribution -- \
-      'Rebuild for Garden Linux.'
-  elif [[ ${CI_MERGE_REQUEST_IID:-} ]]; then
-    VERSION="$(dpkg-parsechangelog -SVersion)gardenlinux~${CI_MERGE_REQUEST_IID}.${CI_PIPELINE_ID}.${CI_COMMIT_SHORT_SHA}"
-    dch --newversion $VERSION --distribution UNRELEASED --force-distribution -- \
-      'Rebuild for Garden Linux.' \
-      "Snapshot from merge request ${CI_MERGE_REQUEST_IID}."
-  else
-    VERSION="$(dpkg-parsechangelog -SVersion)gardenlinux~0.${CI_PIPELINE_ID}.${CI_COMMIT_SHORT_SHA}"
-    dch --newversion $VERSION --distribution UNRELEASED --force-distribution -- \
-      'Rebuild for Garden Linux.' \
-      "Snapshot from branch ${CI_COMMIT_REF_NAME}."
-  fi
-  if [ -e $ROOT/patches/series ]; then
-    for patch in $(grep -vE '^( |#)' $ROOT/patches/series); do
-      desc=$(sed -nEe 's/^(Description|Subject): +(.*)$/\2/p' $ROOT/patches/$patch)
+
+function generate_automated_changelog() {
+  check_variable SOURCE_REPO
+  check_variable UPSTREAM_VERSION
+
+  pushd _output/src
+  case "$1" in
+    local)
+      notice "Create local version (changelog)"
+      version=${UPSTREAM_VERSION}-0gardenlinux~0.local
+      dch --create --package $SOURCE_NAME --newversion "$version" --distribution UNRELEASED --force-distribution -- \
+        'Rebuild for Garden Linux.' \
+        "Local build."
+      ;;
+    release)
+      notice "Create release version (changelog)"
+      dch --create --package $SOURCE_NAME --newversion "$version" --distribution gardenlinux --force-distribution -- \
+        'Rebuild for Garden Linux.'
+      ;;
+    pr)
+      notice "Create pr version (changelog)"
+      version=${UPSTREAM_VERSION}-0gardenlinux~${GITHUB_REF_NAME}.${GITHUB_JOB}.${GITHUB_SHA}
+      dch --create --package $SOURCE_NAME --newversion "$version" --distribution UNRELEASED --force-distribution -- \
+        'Rebuild for Garden Linux.' \
+        "Snapshot from pull request ${GITHUB_REF_NAME}."
+      ;;
+  esac
+  popd
+}
+
+function apply_build_env_patches(){
+
+  gardenlinux_package_root=$1
+
+  if [ -e $gardenlinux_package_root/patches/series ]; then
+    for patch in $(grep -vE '^( |#)' $gardenlinux_package_root/patches/series); do
+      echo "Applying $patch"
+      desc=$(sed -nEe 's/^(Description|Subject): +(.*)$/\2/p' $gardenlinux_package_root/patches/$patch)
       dch --append "$desc."
-      patch -p1 < $ROOT/patches/$patch
+      patch -p1 < $gardenlinux_package_root/patches/$patch
     done
   fi
-  EDITOR=true dpkg-source --commit . gardenlinux-changes
-  dpkg-buildpackage -us -uc -S -nc -d
-
+  
 }
 
-# artifacts:
-#   paths:
-#   - _output/*.changes
-#   - _output/*.dsc
-#   - _output/*.tar.*
-#   expire_in: 2 days
+function build_source(){
+
+  pushd _output/src
+  make -f ./debian/rules source
+
+  EDITOR=true dpkg-source --commit . gardenlinux-changes
+  dpkg-buildpackage -us -uc -S -nc -d
+  popd
+}
+
+export DEB_BUILD_OPTIONS="nodoc terse"
+export DEB_BUILD_PROFILES="nodoc noudeb"
+get_source git
+
+generate_automated_changelog local
+apply_build_env_patches $(pwd)
+build_source
+
+
