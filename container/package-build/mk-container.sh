@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -x 
 GARDENLINUX_BUILD_CRE=${GARDENLINUX_BUILD_CRE:-docker}
 
 thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
