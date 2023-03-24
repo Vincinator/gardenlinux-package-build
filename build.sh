@@ -1,8 +1,12 @@
-# variables:
-#   EXCLUDE_ARTIFACT: ignore
-#   BUILD_DIST: bookworm
-#   BUILD_DIST_GARDENLINUX: today
-#   BUILD_IMAGE: debian:${BUILD_DIST}-slim
+# Default Variables:
+EXCLUDE_ARTIFACT={$EXCLUDE_ARTIFACT:-ignore}
+BUILD_DIST=${BUILD_DIST:-bookworm}
+BUILD_DIST_GARDENLINUX=${BUILD_DIST_GARDENLINUX:-today}
+BUILD_IMAGE=${BUILD_IMAGE:-"debian:${BUILD_DIST}-slim"}
+
+
+
+
 #   BUILD_SOURCES_LIST: |
 #     deb http://deb.debian.org/debian ${BUILD_DIST} main
 #     deb http://deb.debian.org/debian-security ${BUILD_DIST}-security main
@@ -10,7 +14,6 @@
 #     deb http://repo.gardenlinux.io/gardenlinux ${BUILD_DIST_GARDENLINUX} main
 #   BUILD_KEY_GARDENLINUX: |
 #     -----BEGIN PGP PUBLIC KEY BLOCK-----
-
 #     mQINBGN3UG4BEACUPRC/gZekjtoaszk7+TdJUi4E6U9asuUu2p9TvXpItQHcjBc4
 #     XZhKvrtJotft/KJQf7/hkS587QfaRzMqzIJe7WC3ttm/SWNQee9VDUOzNCBaIPrq
 #     9iv0wZn+UtfbnKqUj8oknuo4BIKBdMJML4WiAsueP2wIrl0K37axoXfBFRXXmIhd
@@ -39,34 +42,18 @@
 #     =93j9
 #     -----END PGP PUBLIC KEY BLOCK-----
 
-# before_script:
 function do_before_script() {
-  if [[ $CI_DISPOSABLE_ENVIRONMENT ]]; then
-    echo -n "$BUILD_SOURCES_LIST" > /etc/apt/sources.list
-    if [[ ${BUILD_USE_GARDENLINUX:-} ]]; then
-      echo -n "$BUILD_SOURCES_LIST_GARDENLINUX" >> /etc/apt/sources.list
-      echo "$BUILD_KEY_GARDENLINUX" >> /etc/apt/trusted.gpg.d/gardenlinux.asc
-    fi
-    if [[ $JOB_HOST_ARCH != all ]]; then
-      dpkg --add-architecture $JOB_HOST_ARCH
-    fi
-    apt-get update -qy
-    apt-get upgrade -qy -o DPkg::Options::=--force-unsafe-io fakeroot
-    if [[ ${BUILD_REQUIRES_GO:-} ]]; then
-      apt-get install -qy --no-install-recommends golang
-    fi
-    apt-get install -qy --no-install-recommends ca-certificates
-    if [[ $JOB_HOST_ARCH = all ]]; then
-      apt-get build-dep -qy --indep-only -o DPkg::Options::=--force-unsafe-io ./_output/*.dsc
-    else
-      if [[ $JOB_HOST_ARCH != $(dpkg --print-architecture) ]]; then
-        export DEB_BUILD_PROFILES="${DEB_BUILD_PROFILES:-} cross"
-      fi
-      apt-get build-dep -qy -a $JOB_HOST_ARCH --arch-only -o DPkg::Options::=--force-unsafe-io ./_output/*.dsc
-      # Workaround for non-multiarch build-essential, see https://bugs.debian.org/666743
-      apt-get install -qy --no-install-recommends binutils-$JOB_HOST_GNU_TYPE_PACKAGE gcc-$JOB_HOST_GNU_TYPE_PACKAGE g++-$JOB_HOST_GNU_TYPE_PACKAGE libc6-dev:$JOB_HOST_ARCH
-    fi
+  if [[ $JOB_HOST_ARCH != $(dpkg --print-architecture) ]]; then
+    export DEB_BUILD_PROFILES="${DEB_BUILD_PROFILES:-} cross"
   fi
+
+  # Install Build depdendencies 
+  if [[ $JOB_HOST_ARCH = all ]]; then
+    apt-get build-dep -qy --indep-only -o DPkg::Options::=--force-unsafe-io ./_output/*.dsc
+  else
+    apt-get build-dep -qy -a "$JOB_HOST_ARCH" --arch-only -o DPkg::Options::=--force-unsafe-io ./_output/*.dsc
+  fi
+
   if [[ ${UPLOAD_OUTPUT_TO_S3:-} && ${CI_COMMIT_REF_PROTECTED:-} ]]; then
     apt-get update -qy
     apt-get install -qy --no-install-recommends python3 python3-pip python3-venv
@@ -74,13 +61,13 @@ function do_before_script() {
     python3 -m venv $VIRTUAL_ENV;
     PATH="$VIRTUAL_ENV/bin:$PATH" pip install awscli
   fi
-  cd _output
+
+  cd _output || exit 1
   dpkg-source -x *.dsc src
   chown nobody -R .
-  cd src
+  cd src || exit 1
 }
 
-#  script:
 function do_script() {
 
   if [[ $JOB_HOST_ARCH == 'all' ]]; then
@@ -97,15 +84,14 @@ function do_script() {
 
 
 function do_after_script() {
-  export VIRTUAL_ENV=/opt/venv
-  export PACKAGE_VERSION=$(cat _output/*.dsc | grep "^Version:" | cut -d' ' -f2)
-  export PATH="$VIRTUAL_ENV/bin:$PATH"
-  export OUTPUT_TAR_NAME="${CI_JOB_NAME//build/}-artifacts.tar"
-  export OUTPUT_TAR_NAME="${OUTPUT_TAR_NAME// /}"
+  VIRTUAL_ENV=/opt/venv
+  PACKAGE_VERSION=$(cat _output/*.dsc | grep "^Version:" | cut -d' ' -f2)
+  PATH="$VIRTUAL_ENV/bin:$PATH"
+  OUTPUT_TAR_NAME="${CI_JOB_NAME//build/}-artifacts.tar"
+  OUTPUT_TAR_NAME="${OUTPUT_TAR_NAME// /}"
   if [[ ${UPLOAD_OUTPUT_TO_S3:-} && ${CI_COMMIT_REF_PROTECTED:-} ]]; then
     if [[ ${ROLE_ARN:-} && ${GITLAB_CACHES_BUCKET:-} ]]; then
       echo "Uploading artifacts to S3 Bucket..."
-      set +x
       export $(printf "AWS_ACCESS_KEY_ID=%s AWS_SECRET_ACCESS_KEY=%s AWS_SESSION_TOKEN=%s" \
         $(aws sts assume-role-with-web-identity \
         --role-arn ${ROLE_ARN} \
@@ -115,8 +101,8 @@ function do_after_script() {
         --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' \
         --output text))
       aws sts get-caller-identity
-      tar cf ${OUTPUT_TAR_NAME} _output/linux-image-*-dbg*.deb || echo "failed to compress output artifacts.."
-      aws s3 cp ${OUTPUT_TAR_NAME} ${GITLAB_CACHES_BUCKET}/${CI_PROJECT_NAME}/${PACKAGE_VERSION// /_}/ || echo "failed to upload.."
+      tar cf "${OUTPUT_TAR_NAME}" _output/linux-image-*-dbg*.deb || echo "failed to compress output artifacts.."
+      aws s3 cp "${OUTPUT_TAR_NAME}" "${GITLAB_CACHES_BUCKET}/${CI_PROJECT_NAME}/${PACKAGE_VERSION// /_}/" || echo "failed to upload.."
       echo "done uploading.."
      else
       echo "Please set ROLE_ARN and GITLAB_CACHES_BUCKET variables in gitlab project"

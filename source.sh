@@ -2,6 +2,9 @@
 
 set -Euxo pipefail
 
+ORIGINAL_SOURCE_VIA=${ORIGINAL_SOURCE_VIA:-debian}
+PACKAGE_BUILD_TYPE=${PACKAGE_BUILD_TYPE:-local}
+
 trap 'rm -rf _output && exit' ERR
 
 SOURCE_DIST=${SOURCE_DIST:-gardenlinux/package-build:today}
@@ -59,43 +62,69 @@ function get_source_git() {
 function get_source() {
   case "$1" in
     git)
+      SOURCE_TAG_PREFIX=${SOURCE_TAG_PREFIX:-v}
       echo "Get Source from git repository"
       get_source_git
+      notice "get upstream version"
+      
+      declare -A GIT_VERSIONS
+      # Read all tags and associated versions from remote repo
+      while read -r version tag; do
+        GIT_VERSIONS[$version]=$tag
+        GIT_VERSION_LATEST=$version
+        GIT_TAG_LATEST=$tag
+      # Expect some simple version, the -gitlab.\d is for docker-machine
+      done < <(git ls-remote --tags "$SOURCE_REPO" | perl -ne 'if (m#refs/tags/(\Q'$SOURCE_TAG_PREFIX'\E([\d.]+(-gitlab\.\d+)?))$#) { print $2." ".$1."\n"; }' | sort -V)
+      notice "Latest Git tag of upstream source is: $GIT_TAG_LATEST"
+      TARGET_PACKAGE_VERSION=${SOURCE_TAG_OVERRIDE:-${GIT_VERSION_LATEST}}
       ;;
     lfs)
       echo "Get Source from git-lfs"
+
+      notice "get upstream version"
+      pushd _output/src
+      TARGET_PACKAGE_VERSION="$(dpkg-parsechangelog -SVersion)"
+      popd
       ;;
     debian)
       echo "Get Source from debian apt src repo"
+
+      notice "get upstream version"
+      pushd _output/src
+      TARGET_PACKAGE_VERSION="$(dpkg-parsechangelog -SVersion)"
+      popd
       ;;
     *)
       echo "'$PACKAGE_SOURCE_OGIGIN' is unknown"
       ;;
   esac
+
 }
 
 
+
+
+
 function generate_automated_changelog() {
-  check_variable SOURCE_REPO
-  check_variable UPSTREAM_VERSION
+  check_variable TARGET_PACKAGE_VERSION
 
   pushd _output/src
   case "$1" in
     local)
       notice "Create local version (changelog)"
-      version=${UPSTREAM_VERSION}-0gardenlinux~0.local
+      version=${TARGET_PACKAGE_VERSION}-0gardenlinux~0.local
       dch --create --package $SOURCE_NAME --newversion "$version" --distribution UNRELEASED --force-distribution -- \
         'Rebuild for Garden Linux.' \
         "Local build."
       ;;
     release)
       notice "Create release version (changelog)"
-      dch --create --package $SOURCE_NAME --newversion "$version" --distribution gardenlinux --force-distribution -- \
+      dch --create --package $SOURCE_NAME --newversion "$TARGET_PACKAGE_VERSION" --distribution gardenlinux --force-distribution -- \
         'Rebuild for Garden Linux.'
       ;;
     pr)
       notice "Create pr version (changelog)"
-      version=${UPSTREAM_VERSION}-0gardenlinux~${GITHUB_REF_NAME}.${GITHUB_JOB}.${GITHUB_SHA}
+      version=${TARGET_PACKAGE_VERSION}-0gardenlinux~${GITHUB_REF_NAME}.${GITHUB_JOB}.${GITHUB_SHA}
       dch --create --package $SOURCE_NAME --newversion "$version" --distribution UNRELEASED --force-distribution -- \
         'Rebuild for Garden Linux.' \
         "Snapshot from pull request ${GITHUB_REF_NAME}."
@@ -131,9 +160,9 @@ function build_source(){
 
 export DEB_BUILD_OPTIONS="nodoc terse"
 export DEB_BUILD_PROFILES="nodoc noudeb"
-get_source git
 
-generate_automated_changelog local
+get_source ${ORIGINAL_SOURCE_VIA}
+generate_automated_changelog ${PACKAGE_BUILD_TYPE}
 apply_build_env_patches $(pwd)
 build_source
 
