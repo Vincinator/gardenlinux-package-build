@@ -8,6 +8,8 @@ on:
 jobs:
   source:
     runs-on: ubuntu-latest
+    container:
+      image: debian:bookworm-slim
     steps:
       - name: "Source " 
         run: echo "Source name is ${{ inputs.sourcename }}"
