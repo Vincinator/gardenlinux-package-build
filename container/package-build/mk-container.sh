@@ -1,10 +1,13 @@
 #!/bin/bash
 
-VERSION=${VERSION:-today}
 GARDENLINUX_BUILD_CRE=${GARDENLINUX_BUILD_CRE:-docker}
-IMAGE_NAME=${IMAGE_NAME:-gardenlinux/package-build:${VERSION}}
 
 thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
+
+#VERSION=$("${thisDir}/../../bin/garden-version")
+
+
+IMAGE_NAME=${IMAGE_NAME:-gardenlinux/package-build}
 
 
 SOURCES_LIST=$(cat <<'EOF'
@@ -21,5 +24,5 @@ EOF
 
 ${GARDENLINUX_BUILD_CRE} build \
   --build-arg SOURCES_LIST="$SOURCES_LIST" \
-  -t "$IMAGE_NAME" \
+  -t "$IMAGE_NAME":today \
    "$thisDir"
