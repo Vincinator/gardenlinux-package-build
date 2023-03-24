@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/vincinator/gardenlinux-package-build/package-build:1088.0
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.github_token }}
     steps:
       - name: "Source" 
         run: echo "Source name is ${{ inputs.sourcename }}"
