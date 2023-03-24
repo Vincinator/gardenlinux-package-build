@@ -24,12 +24,6 @@ jobs:
       - name: make package build container
         run: make pkg-build-container
 
-      - name: Dump github context
-        run:   echo "$GITHUB_CONTEXT"
-        shell: bash
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-
       - name: publish container to ghcr.io
         run: | 
           FULL_VERSION="$(bin/garden-version)"
@@ -37,8 +31,8 @@ jobs:
           IMAGE_NAME=$(echo $IMAGE_NAME | tr '[A-Z]' '[a-z]')
           $GARDENLINUX_BUILD_CRE tag "$GARDENLINUX_PKG_BUILD_IMAGE_NAME:today" "ghcr.io/$IMAGE_NAME:today"
           $GARDENLINUX_BUILD_CRE tag "$GARDENLINUX_PKG_BUILD_IMAGE_NAME:today" "ghcr.io/$IMAGE_NAME:$GITHUB_SHA"
-          $GARDENLINUX_BUILD_CRE tag "$GARDENLINUX_PKG_BUILD_IMAGE_NAME:today" "ghcr.io/$IMAGE_NAME:$FULL_VERSION"
+          # $GARDENLINUX_BUILD_CRE tag "$GARDENLINUX_PKG_BUILD_IMAGE_NAME:today" "ghcr.io/$IMAGE_NAME:$FULL_VERSION"
           $GARDENLINUX_BUILD_CRE push "ghcr.io/$IMAGE_NAME:today"
           $GARDENLINUX_BUILD_CRE push "ghcr.io/$IMAGE_NAME:$FULL_VERSION"
-          $GARDENLINUX_BUILD_CRE push "ghcr.io/$IMAGE_NAME:$GITHUB_SHA"
+          # $GARDENLINUX_BUILD_CRE push "ghcr.io/$IMAGE_NAME:$GITHUB_SHA"
         
