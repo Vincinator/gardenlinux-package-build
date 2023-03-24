@@ -9,7 +9,7 @@ jobs:
   source:
     runs-on: ubuntu-latest
     container:
-      image: gardenlinux-package-build/package-build:today
+      image: ghcr.io/vincinator/gardenlinux-package-build/package-build:1088.0
     steps:
       - name: "Source" 
         run: echo "Source name is ${{ inputs.sourcename }}"
