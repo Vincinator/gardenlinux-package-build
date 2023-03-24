@@ -6,7 +6,7 @@ on:
    - cron: '0 3 * * *'
 
 env:
-  IMAGE_NAME: vincinator/package-build
+  IMAGE_NAME: gardenlinux-package-build/package-build
   GARDENLINUX_BUILD_CRE: "docker"
 
 jobs:
