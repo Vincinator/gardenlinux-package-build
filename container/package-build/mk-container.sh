@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GARDENLINUX_BUILD_CRE=${GARDENLINUX_BUILD_CRE:-sudo podman}
+GARDENLINUX_BUILD_CRE=${GARDENLINUX_BUILD_CRE:-docker}
 
 thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
 

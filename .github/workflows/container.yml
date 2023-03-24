@@ -23,7 +23,7 @@ jobs:
 
       - name: publish container to ghcr.io
         run: | 
-          sudo podman tag "$IMAGE_NAME:today" "ghcr.io/gardenlinux/$IMAGE_NAME:today"
-          sudo podman tag "$IMAGE_NAME:today" "ghcr.io/gardenlinux/$IMAGE_NAME:$GITHUB_SHA"
-          sudo podman push "ghcr.io/gardenlinux/$IMAGE_NAME:today"
-          sudo podman push "ghcr.io/gardenlinux/$IMAGE_NAME:$GITHUB_SHA"
+          docker tag "$IMAGE_NAME:today" "ghcr.io/gardenlinux/$IMAGE_NAME:today"
+          docker tag "$IMAGE_NAME:today" "ghcr.io/gardenlinux/$IMAGE_NAME:$GITHUB_SHA"
+          docker push "ghcr.io/gardenlinux/$IMAGE_NAME:today"
+          docker push "ghcr.io/gardenlinux/$IMAGE_NAME:$GITHUB_SHA"
