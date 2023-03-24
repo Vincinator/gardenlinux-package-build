@@ -6,9 +6,10 @@ thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
 
 #VERSION=$("${thisDir}/../../bin/garden-version")
 
-
-IMAGE_NAME=${IMAGE_NAME:-gardenlinux-package-build/package-build}
-
+if  [ -z "${GARDENLINUX_PKG_BUILD_IMAGE_NAME}" ]; then
+    echo " not specified. Refusing to continue"
+    exit 1
+fi
 
 SOURCES_LIST=$(cat <<'EOF'
 deb http://deb.debian.org/debian bookworm main
@@ -24,5 +25,5 @@ EOF
 
 ${GARDENLINUX_BUILD_CRE} build \
   --build-arg SOURCES_LIST="$SOURCES_LIST" \
-  -t "$IMAGE_NAME":today \
+  -t "$GARDENLINUX_PKG_BUILD_IMAGE_NAME":today \
    "$thisDir"
