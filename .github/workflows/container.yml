@@ -7,7 +7,7 @@ on:
 
 env:
   # TODO: rename to gardenlinux organization container name
-  IMAGE_NAME: package-build
+  GARDENLINUX_PKG_BUILD_IMAGE_NAME: package-build
   GARDENLINUX_BUILD_CRE: "docker"
 
 jobs:
@@ -25,7 +25,9 @@ jobs:
 
       - name: publish container to ghcr.io
         run: | 
-          docker tag "$IMAGE_NAME:today" "ghcr.io/${{ github.actor }}/$IMAGE_NAME:today"
-          docker tag "$IMAGE_NAME:today" "ghcr.io/${{ github.actor }}/$IMAGE_NAME:$GITHUB_SHA"
-          docker push "ghcr.io/${{ github.actor }}/$IMAGE_NAME:today"
-          docker push "ghcr.io/${{ github.actor }}/$IMAGE_NAME:$GITHUB_SHA"
+          IMAGE_NAME="${{ github.actor }}/${{ GARDENLINUX_PKG_BUILD_IMAGE_NAME }}"
+          IMAGE_NAME=$(echo $IMAGE_NAME | tr '[A-Z]' '[a-z]')
+          docker tag "$IMAGE_NAME:today" "ghcr.io/$IMAGE_NAME:today"
+          docker tag "$IMAGE_NAME:today" "ghcr.io/$IMAGE_NAME:$GITHUB_SHA"
+          docker push "ghcr.io/$IMAGE_NAME:today"
+          docker push "ghcr.io/$IMAGE_NAME:$GITHUB_SHA"
