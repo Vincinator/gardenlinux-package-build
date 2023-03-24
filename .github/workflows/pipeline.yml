@@ -9,7 +9,7 @@ jobs:
   source:
     runs-on: ubuntu-latest
     container:
-      image: debian:bookworm-slim
+      image: gardenlinux-package-build/package-build:today
     steps:
-      - name: "Source " 
+      - name: "Source" 
         run: echo "Source name is ${{ inputs.sourcename }}"
