@@ -1,14 +1,13 @@
 name: Garden Linux default package build pipeline
-
 on:
   workflow_call:
     inputs:
-      source_name:
-        required: true
+      sourcename:
         type: string
+
 jobs:
   source:
     runs-on: ubuntu-latest
     steps:
       - name: "Source " 
-        run: echo "Source name is ${{ source_name }}"
+        run: echo "Source name is ${{ inputs.sourcename }}"
