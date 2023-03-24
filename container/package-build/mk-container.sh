@@ -7,7 +7,7 @@ thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
 #VERSION=$("${thisDir}/../../bin/garden-version")
 
 
-IMAGE_NAME=${IMAGE_NAME:-gardenlinux/package-build}
+IMAGE_NAME=${IMAGE_NAME:-vincinator/package-build}
 
 
 SOURCES_LIST=$(cat <<'EOF'
