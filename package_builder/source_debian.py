@@ -4,10 +4,10 @@ from enum import Enum
 import shutil
 from pathlib import Path
 import glob
+from source_common import delete_folder
+import source_common as sc
+from source_common import PackageReleaseType, change_debian_changelog, copy_debian_folder, get_package_version
 
-class PackageReleaseType(Enum):
-    RELEASE = 1
-    DEV = 2
 
 def spawn_bash():
     command = ['bash']
@@ -17,16 +17,23 @@ def source_from_debian(source_name, source_dist, package_env_path, changelog_typ
     output_dir = "_output"
     overwrite_debian = True
     orig_tar = False 
-    
-    create_directory(output_dir)
-    download_debian_source(source_name, source_dist)
-    source_dir_unpacked = extract_source_package(source_name, package_env_path, output_dir)
-    copy_debian_folder(package_env_path, source_dir_unpacked, overwrite_debian, orig_tar)
-    
-    package_version = get_package_version(source_dir_unpacked)
-    change_debian_changelog(source_dir_unpacked, changelog_type, package_version)
 
-    spawn_bash()
+   
+    try:
+        create_directory(output_dir)
+        download_debian_source(source_name, source_dist)
+        source_dir_unpacked = extract_source_package(source_name, package_env_path, output_dir)
+        copy_debian_folder(package_env_path, source_dir_unpacked, overwrite_debian, orig_tar)
+        
+        package_version = get_package_version(source_dir_unpacked)
+        change_debian_changelog(source_dir_unpacked, changelog_type, package_version)
+    except Exception as e:
+        #spawn_bash()
+        sc.logger.error("Caught Exception. Cleaning up now.")
+        sc.logger.error(e)
+
+        delete_folder(output_dir)
+
 
 def create_directory(dir_name):
     os.makedirs(dir_name, exist_ok=True)
@@ -47,41 +54,8 @@ def extract_source_package(source_name, root_dir, output_dir):
     source_dir_unpacked = next(Path(output_dir).glob(f"{source_name}-*"))
     return source_dir_unpacked.resolve()
 
-def copy_debian_folder(root_dir, source_dir_unpacked, overwrite_debian=None, orig_tar=None):
-    if overwrite_debian or orig_tar:
-        debian_dir = Path(root_dir) / 'debian'
-        if debian_dir.is_dir():
-            print("### Replace debian folder with own content")
-            shutil.copytree(debian_dir, source_dir_unpacked / 'debian', dirs_exist_ok=True)
-
-
-def build_debian_source_package():
-    command = ['dpkg-buildpackage', '-us', '-uc', '-S', '-nc', '-d']
-    subprocess.run(command, check=True)
-
-def commit_debian_package():
-    command = ['dpkg-source', '--commit', '.', 'gardenlinux-changes']
-    env = os.environ.copy()
-    env['EDITOR'] = 'true'
-    subprocess.run(command, env=env, check=True)
 
 def download_debian_source(source_name, source_dist):
     apt_name=f"{source_name}/{source_dist}"
     command = ['apt', 'source', '--only-source', '-d', apt_name]
     subprocess.run(command, check=True)
-
-def get_package_version(package_directory):
-    command = ['dpkg-parsechangelog', '-SVersion']
-    version = subprocess.check_output(command, cwd=package_directory)
-    return version.strip().decode('utf-8')
-
-def change_debian_changelog(source_dir, changelog_type: PackageReleaseType, version, postfix="dev"):
-    if changelog_type == PackageReleaseType.RELEASE:
-        command = ['dch', '--newversion', version, '--distribution', 'gardenlinux', 
-                   '--force-distribution', '--', 'Rebuild for Garden Linux.']
-    else:  # ChangelogType.DEV
-        command = ['dch', '--newversion', version, '--distribution', 'UNRELEASED', 
-                   '--force-distribution', '--', 'Rebuild for Garden Linux.',
-                   f"Snapshot from local."]
-    
-    subprocess.run(command, cwd=source_dir, check=True)

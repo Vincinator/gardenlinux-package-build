@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import click
+from source_common import PackageReleaseType
 import source_debian as sd
 
 @click.group()
@@ -19,7 +20,7 @@ def source_git(repo, tag_prefix):
 def source_debian(distribution, source_name):
     # your function to do something with the distribution
     click.echo(f'Distribution: {distribution}')
-    sd.source_from_debian(source_name, distribution, "/package", sd.PackageReleaseType.DEV)
+    sd.source_from_debian(source_name, distribution, "/package", PackageReleaseType.DEV)
 
 @cli.command()
 def build():
