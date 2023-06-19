@@ -7,9 +7,10 @@ container_run_opts=(
 )
 
 container_mount_opts=(
-	-v "$PWD/package:/package"
+	-v "$PWD/output:/output"
 )
 
 
 IMAGE_NAME="package-builder"
+mkdir -p output
 podman run "${container_run_opts[@]}" "${container_mount_opts[@]}" ${IMAGE_NAME} "$@"

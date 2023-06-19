@@ -31,10 +31,20 @@ def copy_debian_folder(root_dir, source_dir_unpacked, overwrite_debian=None, ori
             shutil.copytree(debian_dir, source_dir_unpacked / 'debian', dirs_exist_ok=True)
 
 
-def build_debian_source_package():
+def copy_files(src_dir, dest_dir):
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
+
+    for filename in os.listdir(src_dir):
+        filepath = os.path.join(src_dir, filename)
+
+        if os.path.isfile(filepath):
+            shutil.copy(filepath, dest_dir)
+
+def build_debian_source_package(source_dir_unpacked):
     logger.info("Build source package")
     command = ['dpkg-buildpackage', '-us', '-uc', '-S', '-nc', '-d']
-    subprocess.run(command, check=True)
+    subprocess.run(command, cwd=source_dir_unpacked, check=True)
 
 def commit_debian_package():
     logger.info("Commit changes to source package")

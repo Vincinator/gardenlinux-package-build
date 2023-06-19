@@ -1,7 +1,6 @@
 import subprocess
 import os
 from enum import Enum
-import shutil
 from pathlib import Path
 import glob
 from source_common import delete_folder
@@ -14,31 +13,33 @@ def spawn_bash():
     subprocess.run(command)
 
 def source_from_debian(source_name, source_dist, package_env_path, changelog_type: PackageReleaseType):
-    output_dir = "_output"
+    output_dir = "/workdir"
     overwrite_debian = True
     orig_tar = False 
 
    
     try:
         create_directory(output_dir)
-        download_debian_source(source_name, source_dist)
-        source_dir_unpacked = extract_source_package(source_name, package_env_path, output_dir)
+        download_debian_source(output_dir, source_name, source_dist)
+        source_dir_unpacked = extract_source_package(output_dir, source_name, package_env_path)
         copy_debian_folder(package_env_path, source_dir_unpacked, overwrite_debian, orig_tar)
         
         package_version = get_package_version(source_dir_unpacked)
         change_debian_changelog(source_dir_unpacked, changelog_type, package_version)
+        sc.build_debian_source_package(source_dir_unpacked)
+        sc.copy_files(f"/workdir", "/output/source")
     except Exception as e:
         #spawn_bash()
         sc.logger.error("Caught Exception. Cleaning up now.")
         sc.logger.error(e)
 
-        delete_folder(output_dir)
+        #delete_folder(output_dir)
 
 
 def create_directory(dir_name):
     os.makedirs(dir_name, exist_ok=True)
 
-def extract_source_package(source_name, root_dir, output_dir):
+def extract_source_package(output_dir, source_name, root_dir):
     # find the .dsc file
     dsc_files = glob.glob(f"{root_dir}/{source_name}_*.dsc")
     if not dsc_files:
@@ -55,7 +56,7 @@ def extract_source_package(source_name, root_dir, output_dir):
     return source_dir_unpacked.resolve()
 
 
-def download_debian_source(source_name, source_dist):
+def download_debian_source(output_dir, source_name, source_dist):
     apt_name=f"{source_name}/{source_dist}"
     command = ['apt', 'source', '--only-source', '-d', apt_name]
-    subprocess.run(command, check=True)
+    subprocess.run(command, cwd=output_dir, check=True)

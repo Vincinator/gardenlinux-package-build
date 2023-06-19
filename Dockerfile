@@ -38,8 +38,8 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-RUN mkdir /package
-WORKDIR /package
+RUN mkdir /output
+WORKDIR /output
 
 # Run your cli.py script when the container launches
 ENTRYPOINT ["package_builder.py"]
