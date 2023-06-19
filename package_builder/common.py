@@ -16,6 +16,15 @@ GARDENLINUX_DEBMAIL="contact@gardenlinux.io"
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
+def list_directory_contents(directory_path):
+    try:
+        contents = os.listdir(directory_path)
+        print(f"Contents of the directory {directory_path}:")
+        for item in contents:
+            print(item)
+    except FileNotFoundError:
+        print(f"The directory {directory_path} does not exist.")
+
 def delete_folder(folder_path):
     try:
         shutil.rmtree(folder_path)
@@ -23,28 +32,28 @@ def delete_folder(folder_path):
         print(f"Error removing folder '{folder_path}': {str(e)}")
 
 
-def copy_debian_folder(root_dir, source_dir_unpacked, overwrite_debian=None, orig_tar=None):
+def copy_debian_folder(workdir, source_dir, overwrite_debian=None, orig_tar=None):
     if overwrite_debian or orig_tar:
-        debian_dir = Path(root_dir) / 'debian'
+        debian_dir = Path(workdir) / 'debian'
         if debian_dir.is_dir():
             logger.info("Replace debian folder with own content")
-            shutil.copytree(debian_dir, source_dir_unpacked / 'debian', dirs_exist_ok=True)
+            shutil.copytree(debian_dir, source_dir / 'debian', dirs_exist_ok=True)
 
 
-def copy_files(src_dir, dest_dir):
+def copy_files(source_dir, dest_dir):
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
 
-    for filename in os.listdir(src_dir):
-        filepath = os.path.join(src_dir, filename)
+    for filename in os.listdir(source_dir):
+        filepath = os.path.join(source_dir, filename)
 
         if os.path.isfile(filepath):
             shutil.copy(filepath, dest_dir)
 
-def build_debian_source_package(source_dir_unpacked):
+def build_debian_source_package(source_dir):
     logger.info("Build source package")
     command = ['dpkg-buildpackage', '-us', '-uc', '-S', '-nc', '-d']
-    subprocess.run(command, cwd=source_dir_unpacked, check=True)
+    subprocess.run(command, cwd=source_dir, check=True)
 
 def commit_debian_package():
     logger.info("Commit changes to source package")
