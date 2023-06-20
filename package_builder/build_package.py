@@ -14,16 +14,16 @@ arch_dict = {
     'arm64': 'aarch64-linux-gnu',
 }
 
-
-
-def build_package(source_name, source_dist, arch, workdir):
+def build_package(arch, workdir):
     overwrite_debian = True
     orig_tar = False 
 
     try:
         install_build_dependencies(workdir, arch)
         extract_source(workdir)
+        sc.chown_nobody(workdir)
         do_build(f"{workdir}/src", arch)
+        sc.copy_files(f"/workdir/*.deb", "/output/binary", permissions="sudo", files_only=True)
     except subprocess.CalledProcessError as e:
         sc.logger.error(f"Subprocess failed:\n{e.stderr.decode()}")
         sc.list_directory_contents(workdir)
@@ -37,12 +37,12 @@ def build_package(source_name, source_dist, arch, workdir):
 
 def extract_source(workdir):
     dsc_file = get_dsc_file(workdir)
-    command = ['dpkg-source', '-x', dsc_file, f"{workdir}/src"]
+    command = ['sudo', 'dpkg-source', '-x', dsc_file, f"{workdir}/src"]
     subprocess.run(command, cwd=workdir,  stderr=subprocess.PIPE, check=True)
 
 
 def do_build(workdir, target_arch):
-    dpkg_arch = subprocess.run(['dpkg', '--print-architecture'], capture_output=True, text=True).stdout.strip()
+    dpkg_arch = subprocess.run(['sudo', 'dpkg', '--print-architecture'], capture_output=True, text=True).stdout.strip()
 
     if target_arch != dpkg_arch:
         if "DEB_BUILD_OPTIONS" not in os.environ:
@@ -56,9 +56,9 @@ def do_build(workdir, target_arch):
             os.environ["DEB_BUILD_PROFILES"] += " cross"
 
     if target_arch == 'all':
-        subprocess.run(["su", "-s", "/bin/sh", "-c", f"set -euE; dpkg-buildpackage -A", "nobody"], cwd=workdir, check=True)
+        subprocess.run(["sudo", "su", "-s", "/bin/sh", "-c", f"set -euE; dpkg-buildpackage -A", "nobody"], cwd=workdir, check=True)
     else:
-        subprocess.run(["su", "-s", "/bin/sh", "-c", f"set -euE; dpkg-buildpackage -B -a {target_arch}", "nobody"], cwd=workdir, check=True)
+        subprocess.run(["sudo", "su", "-s", "/bin/sh", "-c", f"set -euE; dpkg-buildpackage -B -a {target_arch}", "nobody"], cwd=workdir, check=True)
 
 
 
@@ -74,11 +74,11 @@ def get_dsc_file(directory_path):
 
 def install_build_dependencies(workdir, target_arch, deb_build_profiles=None):
     sc.logger.info(f"Installing build dependencies for arch {target_arch} ...")
-    subprocess.run(["apt-get", "upgrade", "-qy", "-o", "DPkg::Options::=--force-unsafe-io", "fakeroot"], stderr=subprocess.PIPE, check=True)
+    subprocess.run(["sudo", "apt-get", "upgrade", "-qy", "-o", "DPkg::Options::=--force-unsafe-io", "fakeroot"], stderr=subprocess.PIPE, check=True)
     dsc_file = get_dsc_file(workdir)
     if target_arch == "all":
 
-        subprocess.run(["apt-get", "build-dep", "-qy", "--indep-only", "-o", "DPkg::Options::=--force-unsafe-io", dsc_file], cwd=workdir, stderr=subprocess.PIPE, check=True)
+        subprocess.run(["sudo", "apt-get", "build-dep", "-qy", "--indep-only", "-o", "DPkg::Options::=--force-unsafe-io", dsc_file], cwd=workdir, stderr=subprocess.PIPE, check=True)
     else:
         gnu_type = arch_dict[target_arch]
         dpkg_arch = subprocess.run(["dpkg", "--print-architecture"], capture_output=True, text=True).stdout.strip()
@@ -88,7 +88,7 @@ def install_build_dependencies(workdir, target_arch, deb_build_profiles=None):
             else:
                 os.environ["DEB_BUILD_PROFILES"] += " cross"
 
-        subprocess.run(["apt-get", "build-dep", "-qy", "-a", target_arch, "--arch-only", "-o", "DPkg::Options::=--force-unsafe-io", dsc_file], cwd=workdir, stderr=subprocess.PIPE, check=True)
+        subprocess.run(["sudo", "apt-get", "build-dep", "-qy", "-a", target_arch, "--arch-only", "-o", "DPkg::Options::=--force-unsafe-io", dsc_file], cwd=workdir, stderr=subprocess.PIPE, check=True)
 
         # Workaround for non-multiarch build-essential, see https://bugs.debian.org/666743
-        subprocess.run(["apt-get", "install", "-qy", "--no-install-recommends", f"binutils-{gnu_type}", f"gcc-{gnu_type}", f"g++-{gnu_type}", f"libc6-dev:{target_arch}"], cwd=workdir, stderr=subprocess.PIPE, check=True)
+        subprocess.run(["sudo", "apt-get", "install", "-qy", "--no-install-recommends", f"binutils-{gnu_type}", f"gcc-{gnu_type}", f"g++-{gnu_type}", f"libc6-dev:{target_arch}"], cwd=workdir, stderr=subprocess.PIPE, check=True)

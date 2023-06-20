@@ -1,4 +1,3 @@
-# Name of your docker image
 IMAGE_NAME = package-builder
 
 # Makefile targets

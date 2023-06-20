@@ -18,19 +18,22 @@ RUN apt-get install -qy --no-install-recommends \
         rsync \
         git \
         ca-certificates \
+        sudo \
         debian-keyring
 
 
-# Create a non-root user and switch to it
-# RUN useradd -m builder && chown -R builder:builder /home/builder
-# USER builder
+RUN mkdir /output
+
+RUN useradd -m builder && chown -R builder:builder /home/builder
+RUN echo 'builder ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+USER builder
 
 # Add package builder cli to Container
-WORKDIR /builder
-COPY package_builder /builder
-COPY requirements.txt /builder
-
+COPY --chown=builder:builder package_builder /builder
+COPY --chown=builder:builder requirements.txt /builder
 ENV PATH=$PATH:/builder
+
+WORKDIR /builder
 
 ENV VIRTUAL_ENV=/builder/venv
 RUN python3 -m venv $VIRTUAL_ENV
@@ -38,8 +41,4 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-RUN mkdir /output
-WORKDIR /output
-
-# Run your cli.py script when the container launches
 ENTRYPOINT ["package_builder.py"]

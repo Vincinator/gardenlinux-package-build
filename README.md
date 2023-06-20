@@ -20,7 +20,7 @@ This project provides a package build container, which includes a pyhton cli (th
 Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/gardenlinux-packaging-cli.git
+git clone https://github.com/vinciantor/gardenlinux-packaging-cli.git
 cd gardenlinux-packaging-cli
 ```
 
@@ -34,21 +34,28 @@ You can then use the Docker container to run the CLI commands. Note that the ima
 
 ## Usage
 
-To use the tool, start the Docker container with the provided wrapper script:
+`pbcli` provides a convenient command line interface for building and deploying packages. Here's an example of how you might use it:
 
-```bash
-./package_builder.sh <command> [options]
+```
+pbcli.py source iproute2 trixie debian
+pbcli.py build all
 ```
 
-For example, to create a source package from an original Debian source, you can use the `source_debian` command:
+In this example, the `source` command is used to create a source package. This command takes three arguments:
 
-```bash
-./package_builder.sh source_debian --source_name iproute
-```
+1. The name of the source package (`iproute2` in this example).
+2. The distribution (`trixie` in this example).
+3. The type of the package (`debian` in this example to download sources from debian, but can also be `git`).
 
-This command creates a source package for the `iproute` software.
+By default, the output from this command will be placed in the `output/source` directory.
 
-Remember to replace `<command>` with the desired command (`source_git`, `source_debian`, or `build`) and `[options]` with the corresponding options for each command.
+The `build` command is then used to build binary packages from the source package. This command takes one argument, which specifies the architecture to build for (`all` in this example).
+
+By default, the `build` command expects to find the source package in the `output/source` directory. However, you can also provide a custom path to the source package if you prefer. Once the build process is complete, the binary packages will be placed in the `output/binary` directory.
+
+Please note that the `build` command requires that the source package exists in the `output/source` directory or in the custom path you provide. If it cannot find the source package, it will not be able to build the binary packages.
+
+---
 
 ## License
 
