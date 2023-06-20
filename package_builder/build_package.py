@@ -14,13 +14,13 @@ arch_dict = {
     'arm64': 'aarch64-linux-gnu',
 }
 
-def build_package(arch, workdir):
+def build_package(source_name, arch, workdir):
     overwrite_debian = True
     orig_tar = False 
 
     try:
-        install_build_dependencies(workdir, arch)
-        extract_source(workdir)
+        install_build_dependencies(workdir, source_name, arch)
+        extract_source(workdir, source_name)
         sc.chown_nobody(workdir)
         do_build(f"{workdir}/src", arch)
         sc.copy_files(f"/workdir/*.deb", "/output/binary", permissions="sudo", files_only=True)
@@ -35,8 +35,8 @@ def build_package(arch, workdir):
 
         #delete_folder(output_dir)
 
-def extract_source(workdir):
-    dsc_file = get_dsc_file(workdir)
+def extract_source(workdir, source_name):
+    dsc_file = get_dsc_file(source_name, workdir)
     command = ['sudo', 'dpkg-source', '-x', dsc_file, f"{workdir}/src"]
     subprocess.run(command, cwd=workdir,  stderr=subprocess.PIPE, check=True)
 
@@ -62,8 +62,8 @@ def do_build(workdir, target_arch):
 
 
 
-def get_dsc_file(directory_path):
-    files = glob.glob(os.path.join(directory_path, "*.dsc"))
+def get_dsc_file(source_name, directory_path):
+    files = glob.glob(os.path.join(directory_path, f"{source_name}*.dsc"))
 
     if len(files) > 1:
         raise ValueError("Multiple .dsc files found.")
@@ -72,10 +72,10 @@ def get_dsc_file(directory_path):
     
     return files[0]
 
-def install_build_dependencies(workdir, target_arch, deb_build_profiles=None):
+def install_build_dependencies(workdir, source_name, target_arch, deb_build_profiles=None):
     sc.logger.info(f"Installing build dependencies for arch {target_arch} ...")
     subprocess.run(["sudo", "apt-get", "upgrade", "-qy", "-o", "DPkg::Options::=--force-unsafe-io", "fakeroot"], stderr=subprocess.PIPE, check=True)
-    dsc_file = get_dsc_file(workdir)
+    dsc_file = get_dsc_file(source_name, workdir)
     if target_arch == "all":
 
         subprocess.run(["sudo", "apt-get", "build-dep", "-qy", "--indep-only", "-o", "DPkg::Options::=--force-unsafe-io", dsc_file], cwd=workdir, stderr=subprocess.PIPE, check=True)

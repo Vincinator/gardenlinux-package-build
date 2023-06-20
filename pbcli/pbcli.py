@@ -49,11 +49,12 @@ def source(source_name, type, distribution, repository_url, git_tag, output_dir)
 
 
 @cli.command()
+@click.argument('source_name')
 @click.argument('architecture')
 @click.option('--input-dir', default="output/source", show_default=True, help="Input directory.")
 @click.option('--output-dir', default="output/binary", show_default=True, help="Output directory.")
-def build(architecture, input_dir, output_dir):
-    run_in_container([f"build", "--arch", architecture], os.path.abspath(input_dir), os.path.abspath(output_dir))
+def build(source_name, architecture, input_dir, output_dir):
+    run_in_container([f"build", source_name, "--arch", architecture], os.path.abspath(input_dir), os.path.abspath(output_dir))
 
 @cli.command()
 @click.argument('source_name')

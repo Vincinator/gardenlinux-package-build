@@ -24,14 +24,15 @@ def source_debian(distribution, source_name):
     sd.source_from_debian(source_name, distribution, "/workdir", PackageReleaseType.DEV)
 
 @cli.command()
+@click.argument('source_name')
 @click.option('--arch', required=True, help='The target architecture.')
-def build(arch):
+def build(source_name, arch):
     if not os.path.exists("/input"):
         click.echo(f"No source package found in /input/source directory. Aborting...")
         exit(1)
     sc.copy_directory("/input", "/workdir", use_sudo="sudo")
     sc.list_directory_contents("/workdir")
-    bp.build_package(arch, "/workdir")
+    bp.build_package(source_name, arch, "/workdir")
 
 
 if __name__ == '__main__':
